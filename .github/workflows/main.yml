@@ -10,7 +10,7 @@ env:
 
 jobs:
   build_test_deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -28,18 +28,22 @@ jobs:
 
       - name: Run unit tests
         run: |
-          # Change test.py to your actual test file name if different
           python3 -m unittest test.py
 
-      - name: Deploy Flask application
+      - name: Deploy Flask application (SSH to server)
         run: |
-          # kill any previously running instance (ignore error if none)
-          pkill -f "python3 app.py" || true
-          nohup python3 app.py > flask.log 2>&1 &
+          echo "Deploying via SSH"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            pkill -f 'python3 app.py' || true &&
+            cd ~/flask-app &&
+            git pull &&
+            pip install -r requirements.txt &&
+            nohup python3 app.py > flask.log 2>&1 &
+          "
 
   health:
     needs: build_test_deploy
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Health check Flask app
