@@ -1,0 +1,57 @@
+name: display flask app
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  HEALTH_CHECK_URL: http://3.231.229.214:5000/
+
+jobs:
+  build_test_deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run unit tests
+        run: |
+          # Change test.py to your actual test file name if different
+          python3 -m unittest test.py
+
+      - name: Deploy Flask application
+        run: |
+          # kill any previously running instance (ignore error if none)
+          pkill -f "python3 app.py" || true
+          nohup python3 app.py > flask.log 2>&1 &
+
+  health:
+    needs: build_test_deploy
+    runs-on: self-hosted
+
+    steps:
+      - name: Health check Flask app
+        run: |
+          echo "Checking health at $HEALTH_CHECK_URL"
+          for i in {1..10}; do
+            if curl -fsS "$HEALTH_CHECK_URL" > /dev/null; then
+              echo "✅ App is healthy"
+              exit 0
+            fi
+            echo "⏳ App not ready yet... ($i/10)"
+            sleep 5
+          done
+          echo "❌ App failed health check"
+          exit 1
